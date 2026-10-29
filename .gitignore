@@ -12,3 +12,6 @@ out/
 assets/menagerie_panda/
 logs/
 data/sensor_train_*/
+report/*.aux
+report/*.log
+report/*.out

@@ -182,19 +182,23 @@ def main():
     print((a.out / "leaderboard.md").read_text())
 
 
+def _n(x) -> str:
+    return "-" if x is None or x != x else f"{x:.3f}"
+
+
 def write_tables(r: dict, out: Path):
-    rows = sorted(r["judges"].items(), key=lambda kv: -kv[1]["overall"]["balanced_accuracy"])
+    rows = sorted(r["judges"].items(), key=lambda kv: -(kv[1]["overall"]["balanced_accuracy"] or 0))
     md = f"Test set: {r['test']} ({r['n_test']} samples). Sensor classifiers trained on {r['n_train_sensor']} samples from other seeds, noise strength {r['sensor_strength']}.\n\n"
     md += "| Judge | Kind | Coverage | Balanced acc. | False-success | False-failure | No answer | ECE |\n|---|---|---|---|---|---|---|---|\n"
     for name, j in rows:
         o = j["overall"]
-        md += f"| {name} | {j['kind']} | {j.get('coverage', 'all')} | {o['balanced_accuracy']:.3f} | {o['false_success_rate']:.3f} | {o['false_failure_rate']:.3f} | {o['no_answer_rate']:.3f} | {o.get('ece', float('nan')):.3f} |\n"
+        md += f"| {name} | {j['kind']} | {j.get('coverage', 'all')} | {_n(o['balanced_accuracy'])} | {_n(o['false_success_rate'])} | {_n(o['false_failure_rate'])} | {_n(o['no_answer_rate'])} | {_n(o.get('ece'))} |\n"
     md += "\nBalanced accuracy by task:\n\n| Judge | " + " | ".join(TASKS) + " |\n|---|" + "---|" * len(TASKS) + "\n"
     for name, j in rows:
-        md += f"| {name} | " + " | ".join(f"{j['by_task'][t]['balanced_accuracy']:.2f}" if t in j["by_task"] else "-" for t in TASKS) + " |\n"
+        md += f"| {name} | " + " | ".join(_n(j['by_task'][t]['balanced_accuracy']) if t in j["by_task"] else "-" for t in TASKS) + " |\n"
     md += "\nFalse-success rate by task:\n\n| Judge | " + " | ".join(TASKS) + " |\n|---|" + "---|" * len(TASKS) + "\n"
     for name, j in rows:
-        md += f"| {name} | " + " | ".join(f"{j['by_task'][t]['false_success_rate']:.2f}" if t in j["by_task"] else "-" for t in TASKS) + " |\n"
+        md += f"| {name} | " + " | ".join(_n(j['by_task'][t]['false_success_rate']) if t in j["by_task"] else "-" for t in TASKS) + " |\n"
     md += "\nSensor classifier, leave one task out (logistic regression):\n\n| Held-out task | Balanced acc. | False-success |\n|---|---|---|\n"
     for t, m in r["sensor_logreg_leave_one_task_out"].items():
         md += f"| {t} | {m['balanced_accuracy']:.3f} | {m['false_success_rate']:.3f} |\n"
@@ -219,9 +223,10 @@ def plot(r: dict, out: Path):
     fig, ax = plt.subplots(figsize=(6, 4))
     sw = r["noise_sweep_sensor_logreg"]
     ax.semilogx([max(s["strength"], 0.25) for s in sw], [s["balanced_accuracy"] for s in sw], "o-", label="sensor classifier")
-    best = max((j for j in r["judges"].values() if j["kind"] == "vlm"), key=lambda j: j["overall"]["balanced_accuracy"], default=None)
+    full = [j for j in r["judges"].values() if j["kind"] == "vlm" and j["overall"]["n"] >= 0.8 * r["n_test"] and j["overall"]["balanced_accuracy"] == j["overall"]["balanced_accuracy"]]
+    best = max(full, key=lambda j: j["overall"]["balanced_accuracy"], default=None)
     if best:
-        ax.axhline(best["overall"]["balanced_accuracy"], color="r", ls="--", label="best VLM")
+        ax.axhline(best["overall"]["balanced_accuracy"], color="r", ls="--", label="best VLM (>=80% coverage)")
     ax.axhline(0.5, color="gray", ls=":", label="chance")
     ax.set_xlabel("sensor noise strength (1 = cheap hardware default; leftmost point is 0)")
     ax.set_ylabel("balanced accuracy")
