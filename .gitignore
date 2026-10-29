@@ -9,3 +9,6 @@ data/raw/
 out/
 .local-notes/
 *.log
+assets/menagerie_panda/
+logs/
+data/sensor_train_*/
