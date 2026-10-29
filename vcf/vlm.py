@@ -64,7 +64,23 @@ def parse(text: str) -> tuple[bool | None, float | None]:
     return None, None
 
 
+def shrink(jpeg: bytes, max_side: int) -> bytes:
+    import io
+
+    from PIL import Image
+
+    im = Image.open(io.BytesIO(jpeg))
+    if max(im.size) <= max_side:
+        return jpeg
+    im.thumbnail((max_side, max_side))
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=92)
+    return buf.getvalue()
+
+
 class Provider:
+    max_side: int | None = None  # local CPU models get smaller images
+
     def __init__(self, name: str, model: str):
         self.name, self.model = name, model
 
@@ -76,6 +92,8 @@ class Provider:
         raise NotImplementedError
 
     def judge(self, images: list[bytes], prompt: str, retries: int = 6) -> dict:
+        if self.max_side:
+            images = [shrink(b, self.max_side) for b in images]
         key = _key(self.id, images, prompt)
         path = CACHE / self.id.replace("/", "__").replace(":", "_") / f"{key}.json"
         if path.exists():
@@ -153,6 +171,8 @@ class Groq(Provider):
 
 
 class Ollama(Provider):
+    max_side = 384
+
     def __init__(self, model: str):
         super().__init__("ollama", model)
 

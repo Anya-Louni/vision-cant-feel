@@ -32,7 +32,7 @@ def load(dirs: list[Path]):
     for d in dirs:
         samples += [json.loads(l) for l in open(d / "samples.jsonl")]
         traces.update(dict(np.load(d / "sensors.npz")))
-    return samples, traces
+    return [s for s in samples if s["id"] in traces], traces
 
 
 def metrics(y: np.ndarray, pred: np.ndarray, p_success: np.ndarray | None = None) -> dict:
